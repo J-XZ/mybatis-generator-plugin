@@ -14,7 +14,9 @@ import org.mybatis.generator.codegen.mybatis3.MyBatis3FormattingUtilities;
 import org.mybatis.generator.config.GeneratedKey;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class Plugin extends PluginAdapter {
     public boolean validate(List<String> warnings) {
@@ -119,8 +121,10 @@ public class Plugin extends PluginAdapter {
     @Override
     public boolean clientGenerated(
             Interface interfaze, TopLevelClass topLevelClass, IntrospectedTable introspectedTable) {
-        addInsertOrUpdateManuallyMethod(interfaze, introspectedTable);
-        addInsertSelectiveOrUpdateManuallyMethod(interfaze, introspectedTable);
+        addInsertOrUpdateByPrimaryKeyMethod(interfaze, introspectedTable);
+        addInsertSelectiveOrUpdateByPrimaryKeySelectiveMethod(interfaze, introspectedTable);
+//        addInsertOrUpdateManuallyMethod(interfaze, introspectedTable);
+//        addInsertSelectiveOrUpdateManuallyMethod(interfaze, introspectedTable);
         addSelectManuallyByExampleMethod(interfaze, introspectedTable);
         addSelectManuallyByPrimaryKeyMethod(interfaze, introspectedTable);
         addUpdateManuallyByExampleMethod(interfaze, introspectedTable);
@@ -132,13 +136,153 @@ public class Plugin extends PluginAdapter {
     @Override
     public boolean sqlMapDocumentGenerated(Document document, IntrospectedTable introspectedTable) {
         XmlElement root = document.getRootElement();
-        addInsertOrUpdateManuallyElement(root, introspectedTable);
-        addInsertSelectiveOrUpdateManuallyElement(root, introspectedTable);
+        addInsertOrUpdateByPrimaryKeyElement(root, introspectedTable);
+        addInsertSelectiveOrUpdateByPrimaryKeySelectiveElement(root, introspectedTable);
+//        addInsertOrUpdateManuallyElement(root, introspectedTable);
+//        addInsertSelectiveOrUpdateManuallyElement(root, introspectedTable);
         addSelectManuallyByExampleElement(root, introspectedTable);
         addSelectManuallyByPrimaryKeyElement(root, introspectedTable);
         addUpdateManuallyByExampleElement(root, introspectedTable);
         addUpdateManuallyByPrimaryKeyElement(root, introspectedTable);
         return true;
+    }
+
+
+    // add insertOrUpdateByPrimaryKey() method
+    private void addInsertOrUpdateByPrimaryKeyMethod(Interface interfaze, IntrospectedTable introspectedTable) {
+        Method method = new Method();
+        context.getCommentGenerator().addGeneralMethodComment(method, introspectedTable);
+
+        method.setName("insertOrUpdateByPrimaryKey");
+        method.setVisibility(JavaVisibility.PUBLIC);
+        method.setReturnType(FullyQualifiedJavaType.getIntInstance());
+
+        Parameter record = new Parameter(new FullyQualifiedJavaType(introspectedTable.getBaseRecordType()), "record");
+        method.addParameter(record);
+
+        interfaze.addImportedType(new FullyQualifiedJavaType("org.apache.ibatis.annotations.Param"));
+        interfaze.addMethod(method);
+    }
+
+    // add XML element for insertOrUpdateByPrimaryKey()
+    private void addInsertOrUpdateByPrimaryKeyElement(XmlElement parent, IntrospectedTable introspectedTable) {
+        XmlElement element = new XmlElement("insert");
+        context.getCommentGenerator().addComment(element);
+
+        element.addAttribute(new Attribute("id", "insertOrUpdateByPrimaryKey"));
+        element.addAttribute(new Attribute("parameterType", "map"));
+
+        GeneratedKey gk = introspectedTable.getGeneratedKey();
+        String updateGK = "";
+        if (gk != null) {
+            IntrospectedColumn introspectedColumn = introspectedTable.getColumn(gk.getColumn());
+            if (introspectedColumn != null) {
+                if (gk.isJdbcStandard()) {
+                    element.addAttribute(new Attribute("useGeneratedKeys", "true"));
+                    element.addAttribute(new Attribute("keyProperty", "record." + introspectedColumn.getJavaProperty()));
+                    element.addAttribute(new Attribute("keyColumn", introspectedColumn.getActualColumnName()));
+                } else {
+                    element.addElement(getSelectKeyElement(introspectedColumn, gk));
+                }
+                updateGK = String.format(", %s = last_insert_id(%s)",
+                        introspectedColumn.getActualColumnName(), introspectedColumn.getActualColumnName());
+            }
+        }
+        StringBuilder insertClause = new StringBuilder();
+        StringBuilder valuesClause = new StringBuilder();
+        StringBuilder updateClause = new StringBuilder();
+        StringBuilder doNothingUpdateClause = new StringBuilder();
+        insertClause.append("insert into ")
+                .append(introspectedTable.getFullyQualifiedTableNameAtRuntime())
+                .append(" (");
+        valuesClause.append("values (");
+        boolean hasUpdateClause = false;
+
+        List<String> valuesClauses = new ArrayList<>();
+        List<String> updateClauses = new ArrayList<>();
+        List<IntrospectedColumn> columns = ListUtilities.removeIdentityAndGeneratedAlwaysColumns(
+                introspectedTable.getAllColumns());
+
+        List<IntrospectedColumn> primaryKeyColumns = introspectedTable.getPrimaryKeyColumns();
+        Set<String> primaryKeyColumnNames = new HashSet<>();
+        for (IntrospectedColumn c : primaryKeyColumns) {
+            primaryKeyColumnNames.add(c.getActualColumnName());
+        }
+        for (int i = 0; i < columns.size(); i++) {
+            IntrospectedColumn introspectedColumn = columns.get(i);
+
+            insertClause.append(MyBatis3FormattingUtilities.getEscapedColumnName(introspectedColumn));
+            String parameterClause = MyBatis3FormattingUtilities.getParameterClause(introspectedColumn);
+            valuesClause.append(parameterClause.substring(0, 2))
+                    .append("record.")
+                    .append(parameterClause.substring(2));
+
+            // process update clauses for not primaryKey columns
+            if (!primaryKeyColumnNames.contains(introspectedColumn.getActualColumnName())) {
+                OutputUtilities.xmlIndent(updateClause, 1);
+                updateClause.append(introspectedColumn.getActualColumnName())
+                        .append(" = ")
+                        .append(parameterClause.substring(0, 2))
+                        .append("record.")
+                        .append(parameterClause.substring(2))
+                        .append(",");
+                updateClauses.add(updateClause.toString());
+                updateClause.setLength(0);
+                hasUpdateClause = true;
+            } else if (doNothingUpdateClause.length() == 0){
+                doNothingUpdateClause.append(introspectedColumn.getActualColumnName())
+                        .append(" = ")
+                        .append(introspectedColumn.getActualColumnName());
+            }
+
+            if (i + 1 < columns.size()) {
+                insertClause.append(", ");
+                valuesClause.append(", ");
+            }
+
+            if (valuesClause.length() > 80) {
+                element.addElement(new TextElement(insertClause.toString()));
+                insertClause.setLength(0);
+                OutputUtilities.xmlIndent(insertClause, 1);
+
+                valuesClauses.add(valuesClause.toString());
+                valuesClause.setLength(0);
+                OutputUtilities.xmlIndent(valuesClause, 1);
+            }
+        }
+
+        insertClause.append(')');
+        element.addElement(new TextElement(insertClause.toString()));
+
+        valuesClause.append(')');
+        valuesClauses.add(valuesClause.toString());
+
+        for (String clause: valuesClauses) {
+            element.addElement(new TextElement(clause));
+        }
+
+        element.addElement(new TextElement("on duplicate key update "));
+        if (hasUpdateClause) {
+            for (int i = 0; i < updateClauses.size(); i++) {
+                String clause = updateClauses.get(i);
+                if (i == updateClauses.size() - 1) {
+                    clause = clause.substring(0, clause.length() - 1);
+                }
+                element.addElement(new TextElement(clause));
+            }
+        } else {
+            element.addElement(new TextElement("<!-- this table not has non-PrimaryKey column, " +
+                    "so use do nothing clause on duplicate key. -->"));
+            element.addElement(new TextElement(doNothingUpdateClause.toString()));
+        }
+
+        // if table has a generated key, append string like `id = last_insert_id(id)` to updateClause
+        // to ensures the returned id always references the inserted entity or the updated entity
+        if (!updateGK.isEmpty()){
+            element.addElement(new TextElement(updateGK));
+        }
+
+        parent.addElement(element);
     }
 
     // add insertOrUpdateManually() method
@@ -358,6 +502,185 @@ public class Plugin extends PluginAdapter {
         // to ensures the returned id always references the inserted entity or the updated entity
         element.addElement(new TextElement("on duplicate key update ${updateClause}" + updateGK));
 
+        parent.addElement(element);
+    }
+
+
+    // add insertSelectiveOrUpdateByPrimaryKeySelective() method
+    private void addInsertSelectiveOrUpdateByPrimaryKeySelectiveMethod(Interface interfaze, IntrospectedTable introspectedTable) {
+        Method method = new Method();
+        context.getCommentGenerator().addGeneralMethodComment(method, introspectedTable);
+        method.setName("insertSelectiveOrUpdateByPrimaryKeySelective");
+        method.setVisibility(JavaVisibility.PUBLIC);
+        method.setReturnType(FullyQualifiedJavaType.getIntInstance());
+
+        Parameter record = new Parameter(new FullyQualifiedJavaType(introspectedTable.getBaseRecordType()), "record");
+        record.addAnnotation("@Param(\"record\")");
+        method.addParameter(record);
+
+        interfaze.addImportedType(new FullyQualifiedJavaType("org.apache.ibatis.annotations.Param"));
+        interfaze.addMethod(method);
+    }
+
+    // add XML element for insertSelectiveOrUpdateByPrimaryKeySelective()
+    private void addInsertSelectiveOrUpdateByPrimaryKeySelectiveElement(XmlElement parent, IntrospectedTable introspectedTable) {
+        XmlElement element = new XmlElement("insert");
+        context.getCommentGenerator().addComment(element);
+
+        element.addAttribute(new Attribute("id", "insertSelectiveOrUpdateByPrimaryKeySelective"));
+        element.addAttribute(new Attribute("parameterType", "map"));
+
+        GeneratedKey gk = introspectedTable.getGeneratedKey();
+        String updateGK = "";
+        if (gk != null) {
+            IntrospectedColumn introspectedColumn = introspectedTable.getColumn(gk.getColumn());
+            if (introspectedColumn != null) {
+                if (gk.isJdbcStandard()) {
+                    element.addAttribute(new Attribute("useGeneratedKeys", "true"));
+                    element.addAttribute(new Attribute("keyProperty", "record." + introspectedColumn.getJavaProperty()));
+                    element.addAttribute(new Attribute("keyColumn", introspectedColumn.getActualColumnName()));
+                } else {
+                    element.addElement(getSelectKeyElement(introspectedColumn, gk));
+                }
+                updateGK = String.format(", %s = last_insert_id(%s)",
+                        introspectedColumn.getActualColumnName(), introspectedColumn.getActualColumnName());
+            }
+        }
+
+        StringBuilder sb = new StringBuilder();
+
+        List<IntrospectedColumn> primaryKeyColumns = introspectedTable.getPrimaryKeyColumns();
+        Set<String> primaryKeyColumnNames = new HashSet<>();
+        for (IntrospectedColumn c : primaryKeyColumns) {
+            primaryKeyColumnNames.add(c.getActualColumnName());
+        }
+
+        sb.append("insert into ");
+        sb.append(introspectedTable.getFullyQualifiedTableNameAtRuntime());
+        element.addElement(new TextElement(sb.toString()));
+
+        XmlElement insertTrimElement = new XmlElement("trim");
+        insertTrimElement.addAttribute(new Attribute("prefix", "("));
+        insertTrimElement.addAttribute(new Attribute("suffix", ")"));
+        insertTrimElement.addAttribute(new Attribute("suffixOverrides", ","));
+        element.addElement(insertTrimElement);
+
+        XmlElement valuesTrimElement = new XmlElement("trim");
+        valuesTrimElement.addAttribute(new Attribute("prefix", "values ("));
+        valuesTrimElement.addAttribute(new Attribute("suffix", ")"));
+        valuesTrimElement.addAttribute(new Attribute("suffixOverrides", ","));
+        element.addElement(valuesTrimElement);
+        
+        XmlElement updateTrimElement = new XmlElement("trim");
+        updateTrimElement.addAttribute(new Attribute("prefix", "values ("));
+        updateTrimElement.addAttribute(new Attribute("suffix", ")"));
+        updateTrimElement.addAttribute(new Attribute("suffixOverrides", ","));
+        boolean hasUpdateClause = false;
+        StringBuilder doNothingUpdateClause = new StringBuilder();
+
+        for (IntrospectedColumn introspectedColumn: ListUtilities.
+                removeIdentityAndGeneratedAlwaysColumns(introspectedTable.getAllColumns())) {
+            if (doNothingUpdateClause.length() == 0 && primaryKeyColumnNames.contains(introspectedColumn.getActualColumnName())) {
+                doNothingUpdateClause.append(introspectedColumn.getActualColumnName())
+                        .append(" = ")
+                        .append(introspectedColumn.getActualColumnName());
+            }
+
+            if (introspectedColumn.isSequenceColumn()
+                    || introspectedColumn.getFullyQualifiedJavaType().isPrimitive()) {
+                sb.setLength(0);
+                sb.append(MyBatis3FormattingUtilities.getEscapedColumnName(introspectedColumn));
+                sb.append(',');
+                insertTrimElement.addElement(new TextElement(sb.toString()));
+
+                sb.setLength(0);
+                String parameterClause = MyBatis3FormattingUtilities.getParameterClause(introspectedColumn);
+                sb.append(parameterClause.substring(0, 2));
+                sb.append("record.");
+                sb.append(parameterClause.substring(2));
+                sb.append(',');
+                valuesTrimElement.addElement(new TextElement(sb.toString()));
+
+                if (!primaryKeyColumnNames.contains(introspectedColumn.getActualColumnName())){
+                    sb.setLength(0);
+                    sb.append(parameterClause.substring(0, 2));
+                    sb.append("record.");
+                    sb.append(parameterClause.substring(2));
+                    sb.append(',');
+                    updateTrimElement.addElement(new TextElement(sb.toString()));
+                    hasUpdateClause = true;
+                }
+
+                continue;
+            }
+
+            XmlElement insertNotNullElement = new XmlElement("if");
+            sb.setLength(0);
+            sb.append("record.");
+            sb.append(introspectedColumn.getJavaProperty());
+            sb.append(" != null");
+            insertNotNullElement.addAttribute(new Attribute(
+                    "test", sb.toString()));
+
+            sb.setLength(0);
+            sb.append(MyBatis3FormattingUtilities
+                    .getEscapedColumnName(introspectedColumn));
+            sb.append(',');
+            insertNotNullElement.addElement(new TextElement(sb.toString()));
+            insertTrimElement.addElement(insertNotNullElement);
+
+            XmlElement valuesNotNullElement = new XmlElement("if");
+            sb.setLength(0);
+            sb.append("record.");
+            sb.append(introspectedColumn.getJavaProperty());
+            sb.append(" != null");
+            valuesNotNullElement.addAttribute(new Attribute(
+                    "test", sb.toString()));
+
+            sb.setLength(0);
+            String parameterClause = MyBatis3FormattingUtilities.getParameterClause(introspectedColumn);
+            sb.append(parameterClause.substring(0, 2));
+            sb.append("record.");
+            sb.append(parameterClause.substring(2));
+            sb.append(',');
+            valuesNotNullElement.addElement(new TextElement(sb.toString()));
+            valuesTrimElement.addElement(valuesNotNullElement);
+
+            if (!primaryKeyColumnNames.contains(introspectedColumn.getActualColumnName())){
+                XmlElement updateNotNullElement = new XmlElement("if");
+                sb.setLength(0);
+                sb.append("record.");
+                sb.append(introspectedColumn.getJavaProperty());
+                sb.append(" != null");
+                updateNotNullElement.addAttribute(new Attribute(
+                        "test", sb.toString()));
+
+                sb.setLength(0);
+                sb.append(introspectedColumn.getActualColumnName());
+                sb.append(" = ");
+                sb.append(parameterClause.substring(0, 2));
+                sb.append("record.");
+                sb.append(parameterClause.substring(2));
+                sb.append(',');
+                updateNotNullElement.addElement(new TextElement(sb.toString()));
+                updateTrimElement.addElement(updateNotNullElement);
+
+                hasUpdateClause = true;
+            }
+
+        }
+
+        element.addElement(new TextElement("on duplicate key update "));
+        updateTrimElement.addElement(new TextElement("<!-- this is do nothing clause. -->"));
+        updateTrimElement.addElement(new TextElement(doNothingUpdateClause.toString()));
+        element.addElement(updateTrimElement);
+
+        // if table has a generated key, append string like `id = last_insert_id(id)` to updateClause
+        // to ensures the returned id always references the inserted entity or the updated entity
+        if (!updateGK.isEmpty()){
+            element.addElement(new TextElement(updateGK));
+        }
+        
         parent.addElement(element);
     }
 
