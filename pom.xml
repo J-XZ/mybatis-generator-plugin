@@ -4,8 +4,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>space.dfxyz</groupId>
-    <artifactId>mybatis-generator-plugin</artifactId>
+    <groupId>space.jxz</groupId>
+    <artifactId>mybatis-generator-plugin-mysql</artifactId>
     <version>1.1</version>
 
     <properties>
@@ -51,7 +51,7 @@
                         <include>**/*</include>
                     </includes>
                     <repositoryName>mybatis-generator-plugin</repositoryName>
-                    <repositoryOwner>dfxyz</repositoryOwner>
+                    <repositoryOwner>XZ-J</repositoryOwner>
                 </configuration>
                 <executions>
                     <execution>

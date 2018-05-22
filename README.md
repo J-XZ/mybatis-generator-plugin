@@ -35,7 +35,7 @@ Add my repository into your pom.xml and add it as MGB's dependency:
             <dependencies>
                 ...
                 <dependency>
-                    <groupId>space.dfxyz</groupId>
+                    <groupId>space.jxz</groupId>
                     <artifactId>mybatis-generator-plugin</artifactId>
                     <version>1.0</version>
                 </dependency>
@@ -52,7 +52,7 @@ Then add it into your generatorConfig.xml:
 ```xml
 <generatorConfiguration>
     <context id="default" targetRuntime="MyBatis3">
-        <plugin type="space.dfxyz.mybatis.generator.Plugin"></plugin>
+        <plugin type="space.jxz.mybatis.generator.Plugin"></plugin>
         ...
     </context>
 </generatorConfiguration>
