@@ -22,8 +22,8 @@ public class Plugin extends PluginAdapterEx {
     enum FunctionNames {
         publicField,
         limitAndOffset,
-        manullySelect,
-        manullyUpdate,
+        manuallySelect,
+        manuallyUpdate,
         insertOrUpdate,
         tableAndColumnComment,
         generatedKeyForAllTable,
@@ -262,12 +262,12 @@ public class Plugin extends PluginAdapterEx {
             }
         }
 
-        if (isFunctionOpen(FunctionNames.manullyUpdate)) {
+        if (isFunctionOpen(FunctionNames.manuallyUpdate)) {
             addUpdateManuallyByExampleMethod(interfaze, introspectedTable);
             addUpdateManuallyByPrimaryKeyMethod(interfaze, introspectedTable);
         }
 
-        if (isFunctionOpen(FunctionNames.manullySelect)) {
+        if (isFunctionOpen(FunctionNames.manuallySelect)) {
             addSelectManuallyByExampleMethod(interfaze, introspectedTable);
             addSelectManuallyByPrimaryKeyMethod(interfaze, introspectedTable);
         }
@@ -291,14 +291,14 @@ public class Plugin extends PluginAdapterEx {
             }
         }
 
-        if (isFunctionOpen(FunctionNames.manullyUpdate)) {
+        if (isFunctionOpen(FunctionNames.manuallyUpdate)) {
 //          addInsertOrUpdateManuallyElement(root, introspectedTable);
 //          addInsertSelectiveOrUpdateManuallyElement(root, introspectedTable);
             addUpdateManuallyByExampleElement(root, introspectedTable);
             addUpdateManuallyByPrimaryKeyElement(root, introspectedTable);
         }
 
-        if (isFunctionOpen(FunctionNames.manullySelect)) {
+        if (isFunctionOpen(FunctionNames.manuallySelect)) {
             addSelectManuallyByExampleElement(root, introspectedTable);
             addSelectManuallyByPrimaryKeyElement(root, introspectedTable);
         }
