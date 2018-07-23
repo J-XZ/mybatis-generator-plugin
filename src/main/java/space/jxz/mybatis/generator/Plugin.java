@@ -75,6 +75,22 @@ public class Plugin extends PluginAdapterEx {
         return true;
     }
 
+    @Override
+    public boolean modelPrimaryKeyClassGenerated(TopLevelClass topLevelClass, IntrospectedTable introspectedTable) {
+        if (isFunctionOpen(FunctionNames.tableAndColumnComment)) {
+            commentClass(topLevelClass, introspectedTable);
+        }
+        return true;
+    }
+
+    @Override
+    public boolean modelRecordWithBLOBsClassGenerated(TopLevelClass topLevelClass, IntrospectedTable introspectedTable) {
+        if (isFunctionOpen(FunctionNames.tableAndColumnComment)) {
+            commentClass(topLevelClass, introspectedTable);
+        }
+        return true;
+    }
+
     // make all fields public
     @Override
     public boolean modelFieldGenerated(
@@ -262,14 +278,14 @@ public class Plugin extends PluginAdapterEx {
             }
         }
 
-        if (isFunctionOpen(FunctionNames.manuallyUpdate)) {
-            addUpdateManuallyByExampleMethod(interfaze, introspectedTable);
-            addUpdateManuallyByPrimaryKeyMethod(interfaze, introspectedTable);
-        }
-
         if (isFunctionOpen(FunctionNames.manuallySelect)) {
             addSelectManuallyByExampleMethod(interfaze, introspectedTable);
             addSelectManuallyByPrimaryKeyMethod(interfaze, introspectedTable);
+        }
+
+        if (isFunctionOpen(FunctionNames.manuallyUpdate)) {
+            addUpdateManuallyByExampleMethod(interfaze, introspectedTable);
+            addUpdateManuallyByPrimaryKeyMethod(interfaze, introspectedTable);
         }
 
         return true;
@@ -291,16 +307,14 @@ public class Plugin extends PluginAdapterEx {
             }
         }
 
-        if (isFunctionOpen(FunctionNames.manuallyUpdate)) {
-//          addInsertOrUpdateManuallyElement(root, introspectedTable);
-//          addInsertSelectiveOrUpdateManuallyElement(root, introspectedTable);
-            addUpdateManuallyByExampleElement(root, introspectedTable);
-            addUpdateManuallyByPrimaryKeyElement(root, introspectedTable);
-        }
-
         if (isFunctionOpen(FunctionNames.manuallySelect)) {
             addSelectManuallyByExampleElement(root, introspectedTable);
             addSelectManuallyByPrimaryKeyElement(root, introspectedTable);
+        }
+
+        if (isFunctionOpen(FunctionNames.manuallyUpdate)) {
+            addUpdateManuallyByExampleElement(root, introspectedTable);
+            addUpdateManuallyByPrimaryKeyElement(root, introspectedTable);
         }
 
         return true;
@@ -316,7 +330,9 @@ public class Plugin extends PluginAdapterEx {
         method.setVisibility(JavaVisibility.PUBLIC);
         method.setReturnType(FullyQualifiedJavaType.getIntInstance());
 
-        Parameter record = new Parameter(new FullyQualifiedJavaType(introspectedTable.getBaseRecordType()), "record");
+        FullyQualifiedJavaType paramType = introspectedTable.getRules().calculateAllFieldsClass();
+        interfaze.addImportedType(paramType);
+        Parameter record = new Parameter(paramType, "record");
         record.addAnnotation("@Param(\"record\")");
         method.addParameter(record);
 
@@ -459,7 +475,9 @@ public class Plugin extends PluginAdapterEx {
         method.setVisibility(JavaVisibility.PUBLIC);
         method.setReturnType(FullyQualifiedJavaType.getIntInstance());
 
-        Parameter record = new Parameter(new FullyQualifiedJavaType(introspectedTable.getBaseRecordType()), "record");
+        FullyQualifiedJavaType paramType = introspectedTable.getRules().calculateAllFieldsClass();
+        interfaze.addImportedType(paramType);
+        Parameter record = new Parameter(paramType, "record");
         record.addAnnotation("@Param(\"record\")");
         method.addParameter(record);
 
@@ -656,7 +674,8 @@ public class Plugin extends PluginAdapterEx {
         method.setVisibility(JavaVisibility.PUBLIC);
 
         FullyQualifiedJavaType returnType = FullyQualifiedJavaType.getNewListInstance();
-        returnType.addTypeArgument(new FullyQualifiedJavaType(introspectedTable.getBaseRecordType()));
+        returnType.addTypeArgument(introspectedTable.getRules().calculateAllFieldsClass());
+        interfaze.addImportedType(returnType);
         method.setReturnType(returnType);
 
         Parameter selectClause = new Parameter(FullyQualifiedJavaType.getStringInstance(), "selectClause");
@@ -713,7 +732,10 @@ public class Plugin extends PluginAdapterEx {
 
         method.setName("selectManuallyByPrimaryKey");
         method.setVisibility(JavaVisibility.PUBLIC);
-        method.setReturnType(new FullyQualifiedJavaType(introspectedTable.getBaseRecordType()));
+
+        FullyQualifiedJavaType returnType = introspectedTable.getRules().calculateAllFieldsClass();
+        interfaze.addImportedType(returnType);
+        method.setReturnType(returnType);
 
         Parameter selectClause = new Parameter(FullyQualifiedJavaType.getStringInstance(), "selectClause");
         selectClause.addAnnotation("@Param(\"selectClause\")");

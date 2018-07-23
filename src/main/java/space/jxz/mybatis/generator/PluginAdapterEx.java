@@ -4,6 +4,7 @@ import org.mybatis.generator.api.IntrospectedColumn;
 import org.mybatis.generator.api.IntrospectedTable;
 import org.mybatis.generator.api.PluginAdapter;
 import org.mybatis.generator.config.Context;
+import org.mybatis.generator.config.ModelType;
 
 import java.lang.reflect.Field;
 import java.sql.Connection;
