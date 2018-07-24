@@ -1,18 +1,22 @@
 package space.jxz.mybatis.generator;
 
+import org.mybatis.generator.api.FullyQualifiedTable;
 import org.mybatis.generator.api.IntrospectedColumn;
 import org.mybatis.generator.api.IntrospectedTable;
 import org.mybatis.generator.api.dom.OutputUtilities;
 import org.mybatis.generator.api.dom.java.*;
 import org.mybatis.generator.api.dom.xml.*;
-import org.mybatis.generator.codegen.mybatis3.ListUtilities;
 import org.mybatis.generator.codegen.mybatis3.MyBatis3FormattingUtilities;
-import org.mybatis.generator.config.GeneratedKey;
-import org.mybatis.generator.config.TableConfiguration;
+import org.mybatis.generator.config.*;
+import org.mybatis.generator.internal.util.StringUtility;
 
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static org.mybatis.generator.internal.util.StringUtility.*;
 
 public class Plugin extends PluginAdapterEx {
     public boolean validate(List<String> warnings) {
@@ -27,11 +31,13 @@ public class Plugin extends PluginAdapterEx {
         insertOrUpdate,
         tableAndColumnComment,
         generatedKeyForAllTable,
-        retainFirstTable
+        retainFirstTable,
+        columnNameRule_toCamelAndReserveCase,
+        domainObjectNameRule_toCamelAndReserveCase
     }
 
     public boolean isFunctionOpen(FunctionNames functionName) {
-        return "true".equalsIgnoreCase(properties.getProperty(functionName.name()));
+        return StringUtility.isTrue(properties.getProperty(functionName.name()));
     }
 
     @Override
@@ -42,7 +48,87 @@ public class Plugin extends PluginAdapterEx {
         if (isFunctionOpen(FunctionNames.generatedKeyForAllTable)) {
             generatedKeyForAllTable();
         }
+        if (isFunctionOpen(FunctionNames.columnNameRule_toCamelAndReserveCase)) {
+            columnToCamelAndReserveCase();
+        }
+        if (isFunctionOpen(FunctionNames.domainObjectNameRule_toCamelAndReserveCase)) {
+            domainObjectToCamelAndReserveCase();
+        }
     }
+
+    public void columnToCamelAndReserveCase() {
+        for (IntrospectedTable introspectedTable : getIntrospectTables()) {
+            for (IntrospectedColumn introspectedColumn : introspectedTable.getAllColumns()) {
+                TableConfiguration tc = introspectedTable.getTableConfiguration();
+                ColumnOverride columnOverride = tc.getColumnOverride(
+                        introspectedColumn.getActualColumnName());
+                if (columnOverride == null || !stringHasValue(columnOverride.getJavaProperty())) {
+                    introspectedColumn.setJavaProperty(PluginUtils.getCamelCaseStringReserveCase(
+                            introspectedColumn.getActualColumnName(), false));
+                }
+            }
+        }
+    }
+
+    public void domainObjectToCamelAndReserveCase() {
+        for (IntrospectedTable introspectedTable : getIntrospectTables()) {
+            TableConfiguration tc = introspectedTable.getTableConfiguration();
+            boolean delimitIdentifiers = tc.isDelimitIdentifiers()
+                    || stringContainsSpace(tc.getCatalog())
+                    || stringContainsSpace(tc.getSchema())
+                    || stringContainsSpace(tc.getTableName());
+            FullyQualifiedTable qualifiedTable = introspectedTable.getFullyQualifiedTable();
+
+            FullyQualifiedTable proxy = new FullyQualifiedTable(
+                    qualifiedTable.getIntrospectedCatalog(), qualifiedTable.getIntrospectedSchema(),
+                    qualifiedTable.getIntrospectedTableName(), qualifiedTable.getDomainObjectName(),
+                    qualifiedTable.getAlias(),
+                    isTrue(tc.getProperty(PropertyRegistry.TABLE_IGNORE_QUALIFIERS_AT_RUNTIME)),
+                    tc.getProperty(PropertyRegistry.TABLE_RUNTIME_CATALOG),
+                    tc.getProperty(PropertyRegistry.TABLE_RUNTIME_SCHEMA),
+                    tc.getProperty(PropertyRegistry.TABLE_RUNTIME_TABLE_NAME),
+                    delimitIdentifiers,
+                    tc.getDomainObjectRenamingRule(),
+                    context
+            ) {
+                String domainObjectName;
+                @Override
+                public String getDomainObjectName() {
+                    if (stringHasValue(domainObjectName)){
+                        return domainObjectName;
+                    }
+                    return domainObjectName = getDomainObjectNameByReserveCaseRule(qualifiedTable, introspectedTable);
+                }
+            };
+
+            introspectedTable.setFullyQualifiedTable(proxy);
+        }
+    }
+
+
+    public String getDomainObjectNameByReserveCaseRule(FullyQualifiedTable fullyQualifiedTable,
+                                                       IntrospectedTable introspectedTable) {
+        TableConfiguration tc = introspectedTable.getTableConfiguration();
+        String runtimeTableName = tc.getProperty(PropertyRegistry.TABLE_RUNTIME_TABLE_NAME);
+        String finalDomainObjectName;
+        if (stringHasValue(runtimeTableName)) {
+            finalDomainObjectName =  PluginUtils.getCamelCaseStringReserveCase(
+                    runtimeTableName, true);
+        } else {
+            finalDomainObjectName =  PluginUtils.getCamelCaseStringReserveCase(
+                    fullyQualifiedTable.getIntrospectedTableName(), true);
+        }
+        DomainObjectRenamingRule domainObjectRenamingRule = tc.getDomainObjectRenamingRule();
+        if (domainObjectRenamingRule != null) {
+            Pattern pattern = Pattern.compile(domainObjectRenamingRule.getSearchString());
+            String replaceString = domainObjectRenamingRule.getReplaceString();
+            replaceString = replaceString == null ? "" : replaceString; //$NON-NLS-1$
+            Matcher matcher = pattern.matcher(finalDomainObjectName);
+            finalDomainObjectName = matcher.replaceAll(replaceString);
+        }
+        return finalDomainObjectName;
+    }
+
 
     public void generatedKeyForAllTable() {
         for (IntrospectedTable introspectedTable : getIntrospectTables()) {
