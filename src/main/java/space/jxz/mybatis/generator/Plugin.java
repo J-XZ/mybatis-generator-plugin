@@ -109,6 +109,10 @@ public class Plugin extends PluginAdapterEx {
     public String getDomainObjectNameByReserveCaseRule(FullyQualifiedTable fullyQualifiedTable,
                                                        IntrospectedTable introspectedTable) {
         TableConfiguration tc = introspectedTable.getTableConfiguration();
+        if (stringHasValue(tc.getDomainObjectName())) {
+            return tc.getDomainObjectName();
+        }
+
         String runtimeTableName = tc.getProperty(PropertyRegistry.TABLE_RUNTIME_TABLE_NAME);
         String finalDomainObjectName;
         if (stringHasValue(runtimeTableName)) {
