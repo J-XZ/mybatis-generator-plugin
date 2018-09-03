@@ -24,7 +24,7 @@ public class Plugin extends PluginAdapterEx {
     }
 
     enum FunctionNames {
-        publicField,
+        finalGetterSetter,
         limitAndOffset,
         manuallySelect,
         manuallyUpdate,
@@ -32,8 +32,8 @@ public class Plugin extends PluginAdapterEx {
         tableAndColumnComment,
         generatedKeyForAllTable,
         retainFirstTable,
-        columnNameRule_toCamelAndReserveCase,
-        domainObjectNameRule_toCamelAndReserveCase
+        columnNameRule2,
+        domainObjectNameRule2
     }
 
     public boolean isFunctionOpen(FunctionNames functionName) {
@@ -48,10 +48,10 @@ public class Plugin extends PluginAdapterEx {
         if (isFunctionOpen(FunctionNames.generatedKeyForAllTable)) {
             generatedKeyForAllTable();
         }
-        if (isFunctionOpen(FunctionNames.columnNameRule_toCamelAndReserveCase)) {
+        if (isFunctionOpen(FunctionNames.columnNameRule2)) {
             columnToCamelAndReserveCase();
         }
-        if (isFunctionOpen(FunctionNames.domainObjectNameRule_toCamelAndReserveCase)) {
+        if (isFunctionOpen(FunctionNames.domainObjectNameRule2)) {
             domainObjectToCamelAndReserveCase();
         }
     }
@@ -188,37 +188,37 @@ public class Plugin extends PluginAdapterEx {
             TopLevelClass topLevelClass, IntrospectedColumn introspectedColumn,
             IntrospectedTable introspectedTable,
             ModelClassType modelClassType) {
-        if (isFunctionOpen(FunctionNames.publicField)) {
-            field.setVisibility(JavaVisibility.PUBLIC);
-        }
-        if (isFunctionOpen(FunctionNames.tableAndColumnComment)) {
-            commentField(field, introspectedTable, introspectedColumn);
-        }
+//        if (isFunctionOpen(FunctionNames.finalGetterSetter)) {
+//            field.setVisibility(JavaVisibility.PUBLIC);
+//        }
+//        if (isFunctionOpen(FunctionNames.tableAndColumnComment)) {
+//            commentField(field, introspectedTable, introspectedColumn);
+//        }
         return true;
     }
 
-    // remove evil getters
+    // final getters
     @Override
     public boolean modelGetterMethodGenerated(
             Method method,
             TopLevelClass topLevelClass, IntrospectedColumn introspectedColumn,
             IntrospectedTable introspectedTable,
             ModelClassType modelClassType) {
-        if (isFunctionOpen(FunctionNames.publicField)) {
-            return false;
+        if (isFunctionOpen(FunctionNames.finalGetterSetter)) {
+            method.setFinal(true);
         }
         return true;
     }
 
-    // remove evil setters
+    // final setters
     @Override
     public boolean modelSetterMethodGenerated(
             Method method,
             TopLevelClass topLevelClass, IntrospectedColumn introspectedColumn,
             IntrospectedTable introspectedTable,
             ModelClassType modelClassType) {
-        if (isFunctionOpen(FunctionNames.publicField)) {
-            return false;
+        if (isFunctionOpen(FunctionNames.finalGetterSetter)) {
+            method.setFinal(true);
         }
         return true;
     }
