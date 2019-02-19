@@ -11,7 +11,7 @@
 			<!-- 插件功能:  add new select methods allowing you choose which columns to select -->
 			<property name="manuallySelect" value="true" />			
 			
-			<!-- 插件功能:  add new update methods allowing you to update like set field = field + 1 or set str = upper(str) -->
+			<!-- 插件功能:  add new update methods allowing you to update like set holderField = holderField + 1 or set str = upper(str) -->
 			<property name="manuallyUpdate" value="true" />
 			
 			<!-- 插件功能:  添加insertOrUpdateByUniqueKey()和insertSeletiveOrUpdateByUniqueKeySeletive()方法, 表有且只有一个UniqueKey(包括主键)时才会生成, UniqueKey的字段数量不限. -->
@@ -48,7 +48,7 @@ To put it simply, this plugin:
 * add limit/offset related fields and methods into the Example classes to implement pagination for `selectByExample()` method
 * add new methods implementing MySQL's `insert ... on duplicate key update`
 * add new select methods allowing you choose which columns to select
-* add new update methods allowing you to update like `set field = field + 1` or `set str = upper(str)`
+* add new update methods allowing you to update like `set holderField = holderField + 1` or `set str = upper(str)`
 
 ## Usage
 Add my repository into your pom.xml and add it as MGB's dependency:
